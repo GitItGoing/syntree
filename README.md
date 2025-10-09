@@ -1,3 +1,11 @@
+This project is a fork of https://github.com/mshang/syntree. The original description and relevant links can be found below.
+
+This fork makes a couple of small changes:
+
+* Brackets can be escaped using a backslash so that they appear in the output image and are not treated as part of the tree structure (This was adopted from [this](https://github.com/mshang/syntree/pull/22) pull request on the original repo).
+* Support for non-numeric subscripts, e.g. for indicating traces.
+___________________________________________________________
+
 The goal of this project is to create a browser-based, fully local syntax tree generator, for drawing trees as you might find in an introductory linguistics course. Here are a few main features:
 
 * Designed to be easy to use.
