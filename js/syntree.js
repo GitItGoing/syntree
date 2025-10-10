@@ -129,15 +129,20 @@ Node.prototype.draw = function(ctx, font_size, term_font, nonterm_font, color, t
 	
 	var base_string = this.value;
 	var subscript = "";
-	if (this.value.includes('_')) {
-		base_string = this.value.split("_")[0];
-		subscript = this.value.split("_")[1];
+	const delimiter = ":("
+	if (this.value.includes(delimiter)) {
+		const value_parsed = this.value.split(delimiter);
+		base_string = value_parsed[0];
+		subscript = value_parsed[1];
+		if (subscript.includes(")")) {
+			subscript = subscript.split(")")[0];
+		}
 	}
-
+	
 	ctx.fillText(base_string, this.x, this.y);
 
 	if (subscript != "") {
-		var font_parsed = this.has_children ? nonterm_font.split(" ") : term_font.split(" ");
+		const font_parsed = this.has_children ? nonterm_font.split(" ") : term_font.split(" ");
 		subscript_font_size = font_size - 3.25;
 		subscript_font = subscript_font_size.toString() + "pt " + font_parsed[1];
 		ctx.font = subscript_font;
@@ -432,7 +437,7 @@ function parse(str) {
 			n.label = label;
 			if (n.label.search(/^\d+$/) != -1)
 				return subscriptify(n.label);
-			return "_" + label;
+			return "";
 		});
 	
 	while (str[i] == " ") i++;
