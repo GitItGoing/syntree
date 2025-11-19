@@ -132,6 +132,13 @@ function parseFeatureBlock(str, start_index) {
 	return null;
 }
 
+function parseTailMarker(str, start_index) {
+	if (str[start_index] != "<") return null;
+	var match = str.substring(start_index).match(/^<(\w+)>/);
+	if (!match) return null;
+	return { end: start_index + match[0].length, label: match[1] };
+}
+
 Node.prototype.set_siblings = function(parent) {
 	for (var i = 0; i < this.children.length; i++)
 		this.children[i].set_siblings(this);
@@ -456,7 +463,7 @@ MovementLine.prototype.draw = function(ctx) {
 		this.dest_x += 6;
 	}
 	
-	var tail_start_y = this.tail.y + this.tail.feature_block_height + padding_below_text;
+	var tail_start_y = this.tail.max_y + padding_below_text;
 	ctx.moveTo(tail_x, tail_start_y);
 	ctx.quadraticCurveTo(tail_x, this.bottom_y, (tail_x + this.dest_x) / 2, this.bottom_y);
 	ctx.quadraticCurveTo(this.dest_x, this.bottom_y, this.dest_x, this.dest_y + padding_below_text);
@@ -612,6 +619,14 @@ function parse(str) {
 		if (feature_data != null) {
 			n.features = feature_data.features;
 			i = feature_data.end;
+		}
+		while (isWhitespace(str[i])) i++;
+	}
+	if (str[i] == "<") {
+		var tail_data = parseTailMarker(str, i);
+		if (tail_data != null) {
+			n.tail = tail_data.label;
+			i = tail_data.end;
 		}
 		while (isWhitespace(str[i])) i++;
 	}
