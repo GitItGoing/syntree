@@ -25,6 +25,111 @@ function Node() {
 	this.head_chain = null;
 	this.tail_chain = null;
 	this.starred = null;
+	this.features = new Array();
+	this.feature_block_height = 0;
+	this.strikethrough = false;
+}
+
+var feature_font_delta = 2;
+var feature_min_font_size = 6;
+var feature_line_gap = 4;
+var feature_block_margin = 4;
+
+function getFeatureFontSize(base_size) {
+	return Math.max(base_size - feature_font_delta, feature_min_font_size);
+}
+
+function getFeatureLineHeight(base_size) {
+	return getFeatureFontSize(base_size) + feature_line_gap;
+}
+
+function getFeatureBlockHeightFromSize(base_size, feature_count) {
+	if ((!feature_count) || (feature_count <= 0)) return 0;
+	return feature_block_margin + feature_count * getFeatureLineHeight(base_size);
+}
+
+function buildFeatureFont(base_font) {
+	var match = base_font.match(/(\d+(?:\.\d+)?)pt/);
+	if (!match) return base_font;
+	var next_size = Math.max(parseFloat(match[1]) - feature_font_delta, feature_min_font_size);
+	return base_font.replace(/(\d+(?:\.\d+)?)pt/, next_size + "pt");
+}
+
+function decodeFeatureEscape(ch) {
+	switch (ch) {
+	case "n": return "\n";
+	case "r": return "\r";
+	case "t": return "\t";
+	case "\\": return "\\";
+	default: return ch;
+	}
+}
+
+function parseStrikethroughMarker(str) {
+	if ((!str) || (str.length < 3)) return { text: str, strikethrough: false };
+	if ((str[0] != "-") || (str[str.length - 1] != "-")) return { text: str, strikethrough: false };
+	var inner = str.substring(1, str.length - 1);
+	if (inner.length == 0) return { text: str, strikethrough: false };
+	return { text: inner, strikethrough: true };
+}
+
+function isWhitespace(ch) {
+	return (ch == " ") || (ch == "\t") || (ch == "\n") || (ch == "\r");
+}
+
+function splitFeatureList(raw) {
+	var list = new Array();
+	if (!raw) return list;
+	var current = "";
+	var esc = false;
+	for (var i = 0; i < raw.length; i++) {
+		var ch = raw[i];
+		if (esc) {
+			current = current + ch;
+			esc = false;
+			continue;
+		}
+		if (ch == "\\") {
+			esc = true;
+			continue;
+		}
+		if ((ch == ",") || (ch == ";") || (ch == "\n") || (ch == "\r")) {
+			var trimmed = current.replace(/^\s+|\s+$/g, "");
+			if (trimmed.length > 0)
+				list.push(trimmed);
+			current = "";
+			// Skip the paired newline character in Windows-style line endings.
+			if ((ch == "\r") && (raw[i+1] == "\n")) i++;
+			continue;
+		}
+		current = current + ch;
+	}
+	var trimmed = current.replace(/^\s+|\s+$/g, "");
+	if (trimmed.length > 0)
+		list.push(trimmed);
+	return list;
+}
+
+function parseFeatureBlock(str, start_index) {
+	var buffer = "";
+	var esc = false;
+	for (var i = start_index + 1; i < str.length; i++) {
+		var ch = str[i];
+		if (esc) {
+			buffer = buffer + decodeFeatureEscape(ch);
+			esc = false;
+			continue;
+		}
+		if (ch == "\\") {
+			esc = true;
+			continue;
+		}
+		if (ch == "}") {
+			return { end: i + 1, features: splitFeatureList(buffer) };
+		}
+		buffer = buffer + ch;
+	}
+	return null;
 }
 
 Node.prototype.set_siblings = function(parent) {
@@ -55,12 +160,29 @@ Node.prototype.check_triangle = function() {
 		child.check_triangle();
 }
 
+Node.prototype.get_feature_width = function(ctx, term_font, nonterm_font) {
+	if ((!this.features) || (this.features.length == 0)) return 0;
+	var prev_font = ctx.font;
+	var base_font = term_font;
+	if (this.has_children)
+		base_font = nonterm_font;
+	var feature_font = buildFeatureFont(base_font);
+	ctx.font = feature_font;
+	var max_width = 0;
+	for (var i = 0; i < this.features.length; i++)
+		max_width = Math.max(max_width, ctx.measureText("[" + this.features[i] + "]").width);
+	ctx.font = prev_font;
+	return max_width;
+}
+
 Node.prototype.set_width = function(ctx, vert_space, hor_space, term_font, nonterm_font) {
 	ctx.font = term_font;
 	if (this.has_children)
 		ctx.font = nonterm_font;
 
 	var val_width = ctx.measureText(this.value).width;
+	var feature_width = this.get_feature_width(ctx, term_font, nonterm_font);
+	val_width = Math.max(val_width, feature_width);
 
 	for (var child = this.first; child != null; child = child.next)
 		child.set_width(ctx, vert_space, hor_space, term_font, nonterm_font);
@@ -94,7 +216,7 @@ Node.prototype.set_width = function(ctx, vert_space, hor_space, term_font, nonte
 }
 
 Node.prototype.find_height = function() {
-	this.max_y = this.y;
+	this.max_y = this.y + this.feature_block_height;
 	for (var child = this.first; child != null; child = child.next)
 		this.max_y = Math.max(this.max_y, child.find_height());
 	return this.max_y;
@@ -104,6 +226,7 @@ Node.prototype.assign_location = function(x, y, font_size, term_lines) {
 	// floor + 0.5 for antialiasing
 	this.x = Math.floor(x) + 0.5;
 	this.y = Math.floor(y) + 0.5;
+	this.feature_block_height = getFeatureBlockHeightFromSize(font_size, this.features.length);
 	
 	if (this.has_children) {
 		var left_start = x - (this.step)*((this.children.length-1)/2);
@@ -111,7 +234,7 @@ Node.prototype.assign_location = function(x, y, font_size, term_lines) {
 			this.children[i].assign_location(left_start + i*(this.step), y + vert_space, font_size, term_lines);
 	} else {
 		if ((this.parent) && (!term_lines) && (this.parent.children.length == 1) && (!this.draw_triangle))
-			this.y = this.parent.y + padding_above_text + padding_below_text + font_size;
+			this.y = this.parent.y + this.parent.feature_block_height + padding_above_text + padding_below_text + font_size;
 	}
 }
 
@@ -139,7 +262,9 @@ Node.prototype.draw = function(ctx, font_size, term_font, nonterm_font, color, t
 		}
 	}
 	
+	var base_width = ctx.measureText(base_string).width;
 	ctx.fillText(base_string, this.x, this.y);
+	this.draw_strikethrough(ctx, base_width, font_size);
 
 	if (subscript != "") {
 		const font_parsed = this.has_children ? nonterm_font.split(" ") : term_font.split(" ");
@@ -149,25 +274,60 @@ Node.prototype.draw = function(ctx, font_size, term_font, nonterm_font, color, t
 		ctx.fillText(subscript, this.x + font_size / 1.6, this.y + subscript_font_size / 2.75);
 	}
 
+	this.draw_features(ctx, font_size, term_font, nonterm_font);
+
 	for (var child = this.first; child != null; child = child.next)
 		child.draw(ctx, font_size, term_font, nonterm_font, color, term_lines);
 	
 	if (!this.parent) return;
 	
+	var parent_bottom = this.parent.y + this.parent.feature_block_height + padding_below_text;
+	
 	if (this.draw_triangle) {
-		ctx.moveTo(this.parent.x, this.parent.y + padding_below_text);
+		ctx.moveTo(this.parent.x, parent_bottom);
 		ctx.lineTo(this.x - this.left_width, this.y - font_size - padding_above_text);
 		ctx.lineTo(this.x + this.right_width, this.y - font_size - padding_above_text);
-		ctx.lineTo(this.parent.x, this.parent.y + padding_below_text);
+		ctx.lineTo(this.parent.x, parent_bottom);
 		ctx.stroke();
 		return;
 	}
 	
 	if ((!this.has_children) && (!term_lines) && (this.parent.children.length == 1)) return;
 	
-	ctx.moveTo(this.parent.x, this.parent.y + padding_below_text);
+	ctx.moveTo(this.parent.x, parent_bottom);
 	ctx.lineTo(this.x, this.y - font_size - padding_above_text);
 	ctx.stroke();
+}
+
+Node.prototype.draw_features = function(ctx, font_size, term_font, nonterm_font) {
+	if ((!this.features) || (this.features.length == 0)) return;
+	var base_font = term_font;
+	if (this.has_children)
+		base_font = nonterm_font;
+	var prev_font = ctx.font;
+	var feature_font = buildFeatureFont(base_font);
+	ctx.font = feature_font;
+	var line_height = getFeatureLineHeight(font_size);
+	var start_y = this.y + feature_block_margin + getFeatureFontSize(font_size);
+	for (var i = 0; i < this.features.length; i++)
+		ctx.fillText("[" + this.features[i] + "]", this.x, start_y + i * line_height);
+	ctx.font = prev_font;
+}
+
+Node.prototype.draw_strikethrough = function(ctx, text_width, font_size) {
+	if ((!this.strikethrough) || (text_width <= 0)) return;
+	var prev_stroke = ctx.strokeStyle;
+	var prev_line_width = ctx.lineWidth;
+	ctx.strokeStyle = ctx.fillStyle;
+	ctx.lineWidth = Math.max(1, font_size / 12);
+	var half = text_width / 2;
+	var line_y = this.y - font_size * 0.3;
+	ctx.beginPath();
+	ctx.moveTo(this.x - half, line_y);
+	ctx.lineTo(this.x + half, line_y);
+	ctx.stroke();
+	ctx.strokeStyle = prev_stroke;
+	ctx.lineWidth = prev_line_width;
 }
 
 Node.prototype.find_head = function(label) {
@@ -201,7 +361,7 @@ Node.prototype.reset_chains = function() {
 }
 
 Node.prototype.find_intervening_height = function(leftwards) {
-	var max_y = this.y;
+	var max_y = this.y + this.feature_block_height;
 	
 	var n = this;
 	while (true) {
@@ -296,7 +456,8 @@ MovementLine.prototype.draw = function(ctx) {
 		this.dest_x += 6;
 	}
 	
-	ctx.moveTo(tail_x, this.tail.y + padding_below_text);
+	var tail_start_y = this.tail.y + this.tail.feature_block_height + padding_below_text;
+	ctx.moveTo(tail_x, tail_start_y);
 	ctx.quadraticCurveTo(tail_x, this.bottom_y, (tail_x + this.dest_x) / 2, this.bottom_y);
 	ctx.quadraticCurveTo(this.dest_x, this.bottom_y, this.dest_x, this.dest_y + padding_below_text);
 	ctx.stroke();
@@ -416,16 +577,18 @@ function parse(str) {
 			function(match, tail) {
 				n.tail = tail;
 				return " ";
-			})
+	        })
             .replace(/^\s+/, "")
 		    .replace(/\s+$/, "")
             .replace(/\\([\[\]])/g, "$1");     
-		n.value = str;
+		var strike_term = parseStrikethroughMarker(str);
+		n.value = strike_term.text;
+		n.strikethrough = strike_term.strikethrough;
 		return n;
 	}
 
 	var i = 1;
-	while ((str[i] != " ") && (str[i] != "[" || str[i-1] == "\\") && (str[i] != "]" || str[i-1] == "\\")) i++;
+	while ((i < str.length) && (!isWhitespace(str[i])) && (str[i] != "[" || str[i-1] == "\\") && (str[i] != "]" || str[i-1] == "\\") && (str[i] != "{" || str[i-1] == "\\")) i++;
 	n.value = str.substr(1, i-1)
 	n.value = n.value.replace(/\^/, 
 		function () {
@@ -439,8 +602,19 @@ function parse(str) {
 				return subscriptify(n.label);
 			return "";
 		});
+	var strike_node = parseStrikethroughMarker(n.value);
+	n.value = strike_node.text;
+	n.strikethrough = strike_node.strikethrough;
 	
-	while (str[i] == " ") i++;
+	while (isWhitespace(str[i])) i++;
+	if (str[i] == "{") {
+		var feature_data = parseFeatureBlock(str, i);
+		if (feature_data != null) {
+			n.features = feature_data.features;
+			i = feature_data.end;
+		}
+		while (isWhitespace(str[i])) i++;
+	}
 	if (str[i] != "]") {
 		var level = 1;
 		var start = i;

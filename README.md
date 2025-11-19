@@ -4,6 +4,8 @@ This fork makes a couple of small changes:
 
 * Brackets can be escaped using a backslash so that they appear in the output image and are not treated as part of the tree structure (this was adopted from [this](https://github.com/mshang/syntree/pull/22) pull request on the original repo).
 * Support for non-numeric subscripts, e.g. for indicating traces.
+* Feature markers can be attached to any node by placing them in curly braces immediately after the label (e.g. `[DP{•N•} [NP …]]`). The markers appear beneath the node as bracketed items (separate entries with commas, semicolons, literal line breaks, or escaped `\n` sequences inside the braces).
+* Surround any label with leading/trailing hyphens (e.g. `-had-` or `[-TP- ...]`) to draw that label with a strikethrough.
 ___________________________________________________________
 
 The goal of this project is to create a browser-based, fully local syntax tree generator, for drawing trees as you might find in an introductory linguistics course. Here are a few main features:
