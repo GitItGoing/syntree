@@ -2,6 +2,7 @@
 <head>
 	<meta http-equiv="X-UA-Compatible" content="IE=9" />
 	<meta name="description" content="An app for producing linguistics syntax trees from labelled bracket notation." />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="canonical" href="http://mshang.ca/syntree" />
 	<title>Syntax Tree Generator</title>
 
@@ -89,17 +90,118 @@
 
 
 <style type="text/css">
-body { font-size: small !important; font-family: sans-serif; margin: 20px; background-color: #ffffff}
-#accordion { margin: 0px auto; width: 500px; text-align: center; }
-table { margin: 0px auto; }
-//.ui-widget { font-size:small !important; }
-td {font-size:small !important;}
-textarea {resize: vertical; width: 100%}
-a.example { text-decoration: none; color: #4183C4!important; }
-.help {text-align: left;}
-#image-goes-here { text-align: center; }
-img { border: 1px solid #bbbbbb; }
-.nobr { white-space: nowrap; }
+body {
+	background-color: #ffffff;
+	font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+	font-size: 16px;
+	margin: 0;
+	padding: 20px;
+	color: #111;
+}
+
+#accordion {
+	margin: 0 auto;
+	width: 100%;
+	max-width: 720px;
+	text-align: left;
+}
+
+.ui-accordion-content {
+	padding: 1rem !important;
+}
+
+#accordion table {
+	margin: 0;
+	width: 100%;
+	border-collapse: collapse;
+}
+
+#accordion td {
+	font-size: 0.95rem !important;
+	padding: 0.25rem 0;
+}
+
+textarea {
+	resize: vertical;
+	width: 100%;
+	min-height: 120px;
+	font-size: 1rem;
+	padding: 0.75rem;
+	box-sizing: border-box;
+	border-radius: 6px;
+	border: 1px solid #ccd0d5;
+}
+
+a.example {
+	text-decoration: none;
+	color: #4183C4!important;
+	word-break: break-word;
+}
+
+.help {
+	text-align: left;
+}
+
+#image-goes-here {
+	text-align: center;
+	margin: 20px auto;
+	max-width: 100%;
+}
+
+#image-goes-here img,
+#image-goes-here canvas {
+	max-width: 100%;
+	height: auto;
+}
+
+img {
+	border: 1px solid #bbbbbb;
+}
+
+.nobr {
+	white-space: nowrap;
+}
+
+.button-row label {
+	margin-bottom: 0.4rem;
+}
+
+@media (max-width: 640px) {
+	body {
+		padding: 16px;
+		font-size: 15px;
+	}
+	#accordion {
+		width: 100%;
+	}
+	#accordion table,
+	#accordion table tbody,
+	#accordion table tr,
+	#accordion table td {
+		display: block;
+		width: 100%;
+	}
+	#accordion td {
+		text-align: left !important;
+	}
+	.nobr {
+		white-space: normal;
+	}
+	#font-style-radio label,
+	#term-font-check label,
+	#nonterm-font-check label {
+		display: inline-block;
+		margin: 0.15rem 0.35rem 0.15rem 0;
+	}
+	#font-size-slider,
+	#vert-space-slider,
+	#hor-space-slider {
+		margin-top: 0.4rem;
+	}
+	.ui-accordion .ui-accordion-header {
+		padding-left: 1rem;
+	}
+}
 </style>
 
 <link type="text/css" href="css/cupertino/jquery-ui-1.8.18.custom.css" rel="stylesheet" />	

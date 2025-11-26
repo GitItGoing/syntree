@@ -6,6 +6,18 @@ This fork makes a couple of small changes:
 * Support for non-numeric subscripts, e.g. for indicating traces.
 * Feature markers can be attached to any node by placing them in curly braces immediately after the label (e.g. `[DP{•N•} [NP …]]`). The markers appear beneath the node as bracketed items (separate entries with commas, semicolons, literal line breaks, or escaped `\n` sequences inside the braces).
 * Surround any label with leading/trailing hyphens (e.g. `-had-` or `[-TP- ...]`) to draw that label with a strikethrough.
+
+### Examples
+
+These strings can be pasted directly into the textarea (they mirror the in-app Help section):
+
+1. `[NP^ Alice]`
+2. `[NP [N Alice] and [N Bob]]`
+3. `[S[NP[N Alice]][VP[V is][NP[N'[N a student][PP^ of physics]]]]]`
+4. `[S [X_a Movement] [Y example <a>]]`
+5. `[DP{•N•} [NP [N wug]]]` (feature markers stacked under a DP)
+6. `[T' [T_c [Aux had]] [T <c> [Aux_b had] [T Tns]]]` (movement arrow from the lower `T` to the head labeled `c`)
+7. `[V -had-]` (struck-through lexical item)
 ___________________________________________________________
 
 The goal of this project is to create a browser-based, fully local syntax tree generator, for drawing trees as you might find in an introductory linguistics course. Here are a few main features:
