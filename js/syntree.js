@@ -618,6 +618,7 @@ function parse(str) {
 	var i = 0;
 	var esc = false;
 	var token_start = null;
+	var last_target = null; // The last node (this node's label or one of its children) that saw content.
 
 	function flushTextToken(end_index) {
 		if (token_start === null) return;
@@ -625,8 +626,11 @@ function parse(str) {
 		if (raw.length > 0) {
 			if (n.value === null) {
 				setNodeLabel(raw, n);
+				last_target = n;
 			} else {
-				n.children.push(parse(raw));
+				var child = parse(raw);
+				n.children.push(child);
+				last_target = child;
 			}
 		}
 		token_start = null;
@@ -646,7 +650,8 @@ function parse(str) {
 			flushTextToken(i);
 			var feature_data = parseFeatureBlock(body, i);
 			if (feature_data != null) {
-				n.features = n.features.concat(feature_data.features);
+				var target = last_target || n;
+				target.features = target.features.concat(feature_data.features);
 				i = feature_data.end;
 				continue;
 			}
@@ -684,12 +689,14 @@ function parse(str) {
 					if (depth == 0) break;
 				}
 			}
-			if (depth == 0) {
-				var child_str = body.substring(child_start, i + 1);
-				n.children.push(parse(child_str));
-				i++;
-				continue;
-			}
+				if (depth == 0) {
+					var child_str = body.substring(child_start, i + 1);
+					var child = parse(child_str);
+					n.children.push(child);
+					last_target = child;
+					i++;
+					continue;
+				}
 			// Unmatched bracket, treat as text.
 			if (token_start === null) token_start = child_start;
 			continue;

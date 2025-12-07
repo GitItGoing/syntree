@@ -4,7 +4,7 @@ This fork makes a couple of small changes:
 
 * Brackets can be escaped using a backslash so that they appear in the output image and are not treated as part of the tree structure (this was adopted from [this](https://github.com/mshang/syntree/pull/22) pull request on the original repo).
 * Support for non-numeric subscripts, e.g. for indicating traces.
-* Feature markers can be attached to any node by placing them in curly braces anywhere inside that node's brackets (before/after the label, children, or movement tags). For example, `[DP{•N•} [NP …]]`, `[{•N•} DP [NP …]]`, or `[DP [NP …] {•N•}]` all work. The markers appear beneath the node as bracketed items (separate entries with commas, semicolons, literal line breaks, or escaped `\n` sequences inside the braces).
+* Feature markers now attach to the *nearest preceding element* inside the same pair of square brackets: if they follow the node label they decorate that node; if they follow a child, they decorate that child. They can also precede the label (they'll attach to the label once it appears). Examples: `[DP{•D•} [NP …]]` (features on DP), `[DP [NP head]{•D•}]` (features on the NP child), `[{•D•} DP [NP …]]` (features on DP even though the braces come first). Markers appear beneath the target node as bracketed items (separate entries with commas, semicolons, literal line breaks, or escaped `\n` sequences inside the braces).
 * Surround any label with leading/trailing hyphens (e.g. `-had-` or `[-TP- ...]`) to draw that label with a strikethrough.
 
 ### Examples
