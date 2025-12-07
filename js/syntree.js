@@ -650,8 +650,9 @@ function parse(str) {
 			flushTextToken(i);
 			var feature_data = parseFeatureBlock(body, i);
 			if (feature_data != null) {
-				var target = last_target || n;
-				target.features = target.features.concat(feature_data.features);
+				// Always attach features to the current node (the category label),
+				// not to the last parsed child (terminal word)
+				n.features = n.features.concat(feature_data.features);
 				i = feature_data.end;
 				continue;
 			}
