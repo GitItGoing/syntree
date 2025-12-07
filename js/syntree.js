@@ -139,6 +139,25 @@ function parseTailMarker(str, start_index) {
 	return { end: start_index + match[0].length, label: match[1] };
 }
 
+function setNodeLabel(raw, node) {
+	if ((raw === null) || (raw === undefined)) return;
+	// Handle stars on labels.
+	raw = raw.replace(/\^/, function() {
+		node.starred = true;
+		return "";
+	});
+	// Convert trailing _x into subscripts and store the label.
+	raw = raw.replace(/_(\w+)$/, function(match, label) {
+		node.label = label;
+		if (node.label.search(/^\d+$/) != -1)
+			return subscriptify(node.label);
+		return "";
+	});
+	var strike_node = parseStrikethroughMarker(raw);
+	node.value = strike_node.text;
+	node.strikethrough = strike_node.strikethrough;
+}
+
 Node.prototype.set_siblings = function(parent) {
 	for (var i = 0; i < this.children.length; i++)
 		this.children[i].set_siblings(this);
@@ -594,59 +613,93 @@ function parse(str) {
 		return n;
 	}
 
-	var i = 1;
-	while ((i < str.length) && (!isWhitespace(str[i])) && (str[i] != "[" || str[i-1] == "\\") && (str[i] != "]" || str[i-1] == "\\") && (str[i] != "{" || str[i-1] == "\\")) i++;
-	n.value = str.substr(1, i-1)
-	n.value = n.value.replace(/\^/, 
-		function () {
-			n.starred = true;
-			return "";
-		});
-	n.value = n.value.replace(/_(\w+)$/,
-		function(match, label) {
-			n.label = label;
-			if (n.label.search(/^\d+$/) != -1)
-				return subscriptify(n.label);
-			return "";
-		});
-	var strike_node = parseStrikethroughMarker(n.value);
-	n.value = strike_node.text;
-	n.strikethrough = strike_node.strikethrough;
-	
-	while (isWhitespace(str[i])) i++;
-	if (str[i] == "{") {
-		var feature_data = parseFeatureBlock(str, i);
-		if (feature_data != null) {
-			n.features = feature_data.features;
-			i = feature_data.end;
-		}
-		while (isWhitespace(str[i])) i++;
-	}
-	if (str[i] == "<") {
-		var tail_data = parseTailMarker(str, i);
-		if (tail_data != null) {
-			n.tail = tail_data.label;
-			i = tail_data.end;
-		}
-		while (isWhitespace(str[i])) i++;
-	}
-	if (str[i] != "]") {
-		var level = 1;
-		var start = i;
-		for (; i < str.length; i++) {
-			var temp = level;
-			if (str[i] == "[" && str[i-1] != "\\") level++;
-			if (str[i] == "]" && str[i-1] != "\\") level--;
-			if (((temp == 1) && (level == 2)) || ((temp == 1) && (level == 0))) {
-				if (str.substring(start, i).search(/[^\s]/) > -1)
-					n.children.push(parse(str.substring(start, i)));
-				start = i;
-			}
-			if ((temp == 2) && (level == 1)) {
-				n.children.push(parse(str.substring(start, i+1)));
-				start = i+1;
+	// Remove the outer brackets so we can scan the node contents.
+	var body = str.substring(1, str.length - 1);
+	var i = 0;
+	var esc = false;
+	var token_start = null;
+
+	function flushTextToken(end_index) {
+		if (token_start === null) return;
+		var raw = body.substring(token_start, end_index).replace(/^\s+|\s+$/g, "");
+		if (raw.length > 0) {
+			if (n.value === null) {
+				setNodeLabel(raw, n);
+			} else {
+				n.children.push(parse(raw));
 			}
 		}
+		token_start = null;
 	}
+
+	while (i < body.length) {
+		var ch = body[i];
+		if (esc) {
+			esc = false; i++; continue;
+		}
+		if (ch == "\\") {
+			esc = true; i++; continue;
+		}
+		if (isWhitespace(ch)) { flushTextToken(i); i++; continue; }
+
+		if (ch == "{") {
+			flushTextToken(i);
+			var feature_data = parseFeatureBlock(body, i);
+			if (feature_data != null) {
+				n.features = n.features.concat(feature_data.features);
+				i = feature_data.end;
+				continue;
+			}
+			if (token_start === null) token_start = i;
+			i++;
+			continue;
+		}
+
+		if (ch == "<") {
+			flushTextToken(i);
+			var tail_data = parseTailMarker(body, i);
+			if (tail_data != null) {
+				n.tail = tail_data.label;
+				i = tail_data.end;
+				continue;
+			}
+			if (token_start === null) token_start = i;
+			i++;
+			continue;
+		}
+
+		if (ch == "[") {
+			flushTextToken(i);
+			var depth = 1;
+			var child_start = i;
+			i++;
+			var child_esc = false;
+			for (; i < body.length; i++) {
+				var c2 = body[i];
+				if (child_esc) { child_esc = false; continue; }
+				if (c2 == "\\") { child_esc = true; continue; }
+				if (c2 == "[") depth++;
+				else if (c2 == "]") {
+					depth--;
+					if (depth == 0) break;
+				}
+			}
+			if (depth == 0) {
+				var child_str = body.substring(child_start, i + 1);
+				n.children.push(parse(child_str));
+				i++;
+				continue;
+			}
+			// Unmatched bracket, treat as text.
+			if (token_start === null) token_start = child_start;
+			continue;
+		}
+
+		if (token_start === null) token_start = i;
+		i++;
+	}
+	flushTextToken(i);
+
+	if (n.value === null) n.value = "";
 	return n;
 }
