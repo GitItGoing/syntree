@@ -12,6 +12,7 @@ function Node() {
 	this.draw_triangle = null;
 	this.label = null; // Head of movement.
 	this.tail = null; // Tail of movement.
+	this.tail_text = null; // Text to display on movement line.
 	this.max_y = null; // Distance of the descendent of this node that is farthest from root.
 	this.children = new Array();
 	this.has_children;
@@ -136,9 +137,10 @@ function parseFeatureBlock(str, start_index) {
 
 function parseTailMarker(str, start_index) {
 	if (str[start_index] != "<") return null;
-	var match = str.substring(start_index).match(/^<(\w+)>/);
+	// Match <label> or <label:text>
+	var match = str.substring(start_index).match(/^<(\w+)(?::([^>]*))?>/);
 	if (!match) return null;
-	return { end: start_index + match[0].length, label: match[1] };
+	return { end: start_index + match[0].length, label: match[1], text: match[2] || null };
 }
 
 function parseAffixTailMarker(str, start_index) {
@@ -384,6 +386,7 @@ Node.prototype.find_movement = function(mlarr, root) {
 		var m = new MovementLine;
 		m.tail = this;
 		m.head = root.find_head(this.tail);
+		m.text = this.tail_text;
 		mlarr.push(m);
 	}
 }
@@ -415,6 +418,7 @@ Node.prototype.find_intervening_height = function(leftwards) {
 function MovementLine() {
 	this.head = null;
 	this.tail = null;
+	this.text = null; // Optional label text for the line.
 	this.lca = null;
 	this.dest_x = null;
 	this.dest_y = null;
@@ -484,27 +488,36 @@ MovementLine.prototype.find_intervening_height = function() {
 						  this.head.max_y);
 }
 
-MovementLine.prototype.draw = function(ctx) {
+MovementLine.prototype.draw = function(ctx, font_size) {
 	var tail_x = this.tail.x + 3;
-	this.dest_x -= 3;
+	var head_x = this.dest_x - 3;
 	if (this.leftwards) {
 		tail_x -= 6;
-		this.dest_x += 6;
+		head_x += 6;
 	}
 
 	var tail_start_y = this.tail.max_y + padding_below_text;
 	ctx.moveTo(tail_x, tail_start_y);
-	ctx.quadraticCurveTo(tail_x, this.bottom_y, (tail_x + this.dest_x) / 2, this.bottom_y);
-	ctx.quadraticCurveTo(this.dest_x, this.bottom_y, this.dest_x, this.dest_y + padding_below_text);
+	ctx.quadraticCurveTo(tail_x, this.bottom_y, (tail_x + head_x) / 2, this.bottom_y);
+	ctx.quadraticCurveTo(head_x, this.bottom_y, head_x, this.dest_y + padding_below_text);
 	ctx.stroke();
 	// Arrowhead
 	ctx.beginPath();
-	ctx.lineTo(this.dest_x + 3, this.dest_y + padding_below_text + 10);
-	ctx.lineTo(this.dest_x - 3, this.dest_y + padding_below_text + 10);
-	ctx.lineTo(this.dest_x, this.dest_y + padding_below_text);
+	ctx.lineTo(head_x + 3, this.dest_y + padding_below_text + 10);
+	ctx.lineTo(head_x - 3, this.dest_y + padding_below_text + 10);
+	ctx.lineTo(head_x, this.dest_y + padding_below_text);
 	ctx.closePath();
 	ctx.fillStyle = "#000000";
 	ctx.fill();
+
+	// Draw text label if present
+	if (this.text) {
+		var mid_x = (tail_x + head_x) / 2;
+		var text_y = this.bottom_y + font_size + 2;
+		ctx.font = (font_size - 2) + "pt sans-serif";
+		ctx.textAlign = "center";
+		ctx.fillText(this.text, mid_x, text_y);
+	}
 }
 
 function AffixLine() {
@@ -721,7 +734,7 @@ function go(str, font_size, term_font, nonterm_font, vert_space, hor_space, colo
 	
 	root.draw(ctx, font_size, term_font, nonterm_font, color, term_lines);
 	for (var i = 0; i < movement_lines.length; i++)
-		if (movement_lines[i].should_draw) movement_lines[i].draw(ctx);
+		if (movement_lines[i].should_draw) movement_lines[i].draw(ctx, font_size);
 	for (var i = 0; i < affix_lines.length; i++)
 		if (affix_lines[i].should_draw) affix_lines[i].draw(ctx, font_size);
 
@@ -823,10 +836,11 @@ function parse(str) {
 				i = affix_data.end;
 				continue;
 			}
-			// Then try regular movement tail marker (<label>)
+			// Then try regular movement tail marker (<label> or <label:text>)
 			var tail_data = parseTailMarker(body, i);
 			if (tail_data != null) {
 				n.tail = tail_data.label;
+				n.tail_text = tail_data.text;
 				i = tail_data.end;
 				continue;
 			}
