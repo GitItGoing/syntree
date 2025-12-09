@@ -20,6 +20,7 @@
 
 
 <body>
+	<button id="theme-toggle" onclick="toggleTheme()">☀️ Light</button>
 	<a href="https://github.com/joshsellers/syntree"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_orange_ff7600.png" alt="Fork me on GitHub"></a>
 	<div id="accordion">
 		<h3><a href="#">Syntax Tree Generator</a></h3><div style="text-align:left">
@@ -90,13 +91,61 @@
 
 
 <style type="text/css">
+/* CSS Variables for theming */
+:root {
+	--bg-color: #1a1a2e;
+	--text-color: #e8e8e8;
+	--accent-color: #4da8da;
+	--border-color: #3a3a5a;
+	--input-bg: #16213e;
+	--input-border: #3a3a5a;
+	--header-bg: #16213e;
+	--content-bg: #1a1a2e;
+	--img-border: #3a3a5a;
+	--link-color: #6db3f2;
+}
+
+:root.light-mode {
+	--bg-color: #ffffff;
+	--text-color: #111111;
+	--accent-color: #4183C4;
+	--border-color: #ccd0d5;
+	--input-bg: #ffffff;
+	--input-border: #ccd0d5;
+	--header-bg: #f6f6f6;
+	--content-bg: #ffffff;
+	--img-border: #bbbbbb;
+	--link-color: #4183C4;
+}
+
 body {
-	background-color: #ffffff;
+	background-color: var(--bg-color);
 	font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
 	font-size: 16px;
 	margin: 0;
 	padding: 20px;
-	color: #111;
+	color: var(--text-color);
+	transition: background-color 0.3s, color 0.3s;
+}
+
+#theme-toggle {
+	position: fixed;
+	top: 12px;
+	left: 12px;
+	background: var(--header-bg);
+	border: 1px solid var(--border-color);
+	border-radius: 8px;
+	padding: 8px 12px;
+	cursor: pointer;
+	font-size: 14px;
+	color: var(--text-color);
+	z-index: 1000;
+	transition: all 0.3s;
+}
+
+#theme-toggle:hover {
+	background: var(--accent-color);
+	color: #fff;
 }
 
 #accordion {
@@ -106,8 +155,49 @@ body {
 	text-align: left;
 }
 
+/* Override jQuery UI accordion styles for dark mode */
+.ui-accordion .ui-accordion-header {
+	background: var(--header-bg) !important;
+	color: var(--text-color) !important;
+	border-color: var(--border-color) !important;
+}
+
+.ui-accordion .ui-accordion-content {
+	background: var(--content-bg) !important;
+	color: var(--text-color) !important;
+	border-color: var(--border-color) !important;
+}
+
 .ui-accordion-content {
 	padding: 1rem !important;
+}
+
+/* jQuery UI button overrides */
+.ui-button {
+	background: var(--header-bg) !important;
+	color: var(--text-color) !important;
+	border-color: var(--border-color) !important;
+}
+
+.ui-button:hover {
+	background: var(--accent-color) !important;
+	color: #fff !important;
+}
+
+.ui-state-active {
+	background: var(--accent-color) !important;
+	color: #fff !important;
+}
+
+/* Slider overrides */
+.ui-slider {
+	background: var(--input-bg) !important;
+	border-color: var(--border-color) !important;
+}
+
+.ui-slider-handle {
+	background: var(--accent-color) !important;
+	border-color: var(--accent-color) !important;
 }
 
 #accordion table {
@@ -129,17 +219,37 @@ textarea {
 	padding: 0.75rem;
 	box-sizing: border-box;
 	border-radius: 6px;
-	border: 1px solid #ccd0d5;
+	border: 1px solid var(--input-border);
+	background-color: var(--input-bg);
+	color: var(--text-color);
+	transition: all 0.3s;
+}
+
+textarea:focus {
+	outline: none;
+	border-color: var(--accent-color);
+	box-shadow: 0 0 0 2px rgba(77, 168, 218, 0.2);
+}
+
+a {
+	color: var(--link-color);
 }
 
 a.example {
 	text-decoration: none;
-	color: #4183C4!important;
+	color: var(--link-color) !important;
 	word-break: break-word;
 }
 
 .help {
 	text-align: left;
+}
+
+.help code {
+	background: var(--input-bg);
+	padding: 2px 6px;
+	border-radius: 4px;
+	font-size: 0.9em;
 }
 
 #image-goes-here {
@@ -152,10 +262,11 @@ a.example {
 #image-goes-here canvas {
 	max-width: 100%;
 	height: auto;
+	border-radius: 8px;
 }
 
 img {
-	border: 1px solid #bbbbbb;
+	border: 1px solid var(--img-border);
 }
 
 .nobr {
@@ -169,7 +280,14 @@ img {
 @media (max-width: 640px) {
 	body {
 		padding: 16px;
+		padding-top: 50px;
 		font-size: 15px;
+	}
+	#theme-toggle {
+		top: 8px;
+		left: 8px;
+		padding: 6px 10px;
+		font-size: 12px;
 	}
 	#accordion {
 		width: 100%;
@@ -211,6 +329,39 @@ img {
 <script type="text/javascript" src="js/canvas2image.js"></script>
 <script type="text/javascript" src="js/syntree.js"></script>
 <script type="text/javascript">
+
+// Theme toggle functionality
+function toggleTheme() {
+	const root = document.documentElement;
+	const toggle = document.getElementById('theme-toggle');
+	const isLight = root.classList.contains('light-mode');
+
+	if (isLight) {
+		root.classList.remove('light-mode');
+		toggle.textContent = '☀️ Light';
+		localStorage.setItem('theme', 'dark');
+	} else {
+		root.classList.add('light-mode');
+		toggle.textContent = '🌙 Dark';
+		localStorage.setItem('theme', 'light');
+	}
+}
+
+// Initialize theme from localStorage (default is dark)
+(function initTheme() {
+	const savedTheme = localStorage.getItem('theme');
+	const root = document.documentElement;
+	const toggle = document.getElementById('theme-toggle');
+
+	if (savedTheme === 'light') {
+		root.classList.add('light-mode');
+		if (toggle) toggle.textContent = '🌙 Dark';
+	} else {
+		// Dark mode is default
+		root.classList.remove('light-mode');
+		if (toggle) toggle.textContent = '☀️ Light';
+	}
+})();
 
 function handler(font_size_update, vert_space_update, hor_space_update) {
 try {

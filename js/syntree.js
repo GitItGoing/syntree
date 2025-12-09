@@ -433,7 +433,10 @@ function MovementLine() {
 MovementLine.prototype.set_up = function() {
 	this.should_draw = 0;
 	if ((this.tail == null) || (this.head == null)) return;
-	
+
+	// Prevent self-loops (head and tail are the same node)
+	if (this.tail == this.head) return;
+
 	// Check to see if head is parent of tail,
 	if (!this.check_head()) return;
 	
@@ -538,6 +541,9 @@ function AffixLine() {
 AffixLine.prototype.set_up = function() {
 	this.should_draw = 0;
 	if ((this.tail == null) || (this.head == null)) return;
+
+	// Prevent self-loops (head and tail are the same node)
+	if (this.tail == this.head) return;
 
 	// Check to see if head is parent of tail.
 	if (!this.check_head()) return;
