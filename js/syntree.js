@@ -410,8 +410,10 @@ Node.prototype.find_intervening_height = function(leftwards) {
 		max_y = Math.max(max_y, n.max_y);
 	}
 	
-	max_y = Math.max(max_y, 
-		this.parent.find_intervening_height(leftwards));
+	if (this.parent) {
+		max_y = Math.max(max_y,
+			this.parent.find_intervening_height(leftwards));
+	}
 	return max_y;
 }
 
