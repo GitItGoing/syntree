@@ -28,6 +28,8 @@ function Node() {
 	this.features = new Array();
 	this.feature_block_height = 0;
 	this.strikethrough = false;
+	this.affix_tail = null; // Tail of affix line (label).
+	this.affix_text = null; // Text to display on affix line.
 }
 
 var feature_font_delta = 2;
@@ -137,6 +139,14 @@ function parseTailMarker(str, start_index) {
 	var match = str.substring(start_index).match(/^<(\w+)>/);
 	if (!match) return null;
 	return { end: start_index + match[0].length, label: match[1] };
+}
+
+function parseAffixTailMarker(str, start_index) {
+	if (str.substring(start_index, start_index + 2) != "<<") return null;
+	// Match <<label>> or <<label:text>>
+	var match = str.substring(start_index).match(/^<<(\w+)(?::([^>]*))?>>/);
+	if (!match) return null;
+	return { end: start_index + match[0].length, label: match[1], text: match[2] || null };
 }
 
 function setNodeLabel(raw, node) {
@@ -481,7 +491,7 @@ MovementLine.prototype.draw = function(ctx) {
 		tail_x -= 6;
 		this.dest_x += 6;
 	}
-	
+
 	var tail_start_y = this.tail.max_y + padding_below_text;
 	ctx.moveTo(tail_x, tail_start_y);
 	ctx.quadraticCurveTo(tail_x, this.bottom_y, (tail_x + this.dest_x) / 2, this.bottom_y);
@@ -495,6 +505,138 @@ MovementLine.prototype.draw = function(ctx) {
 	ctx.closePath();
 	ctx.fillStyle = "#000000";
 	ctx.fill();
+}
+
+function AffixLine() {
+	this.head = null;
+	this.tail = null;
+	this.text = null; // Optional label text for the line.
+	this.lca = null;
+	this.dest_x = null;
+	this.dest_y = null;
+	this.bottom_y = null;
+	this.max_y = null;
+	this.should_draw = null;
+	this.leftwards = null;
+}
+
+AffixLine.prototype.set_up = function() {
+	this.should_draw = 0;
+	if ((this.tail == null) || (this.head == null)) return;
+
+	// Check to see if head is parent of tail.
+	if (!this.check_head()) return;
+
+	// Find the last common ancestor.
+	this.find_lca();
+	if (this.lca == null) return;
+
+	// Find out the greatest intervening height.
+	this.find_intervening_height();
+
+	this.dest_x = this.head.x;
+	this.dest_y = this.head.max_y;
+	this.bottom_y = this.max_y + vert_space;
+	this.should_draw = 1;
+	return;
+}
+
+AffixLine.prototype.check_head = function() {
+	var n = this.tail;
+	n.tail_chain = 1;
+	while (n.parent != null) {
+		n = n.parent;
+		if (n == this.head) return 0;
+		n.tail_chain = 1;
+	}
+	return 1;
+}
+
+AffixLine.prototype.find_lca = function() {
+	var n = this.head;
+	n.head_chain = 1;
+	this.lca = null;
+	while (n.parent != null) {
+		n = n.parent;
+		n.head_chain = 1;
+		if (n.tail_chain) {
+			this.lca = n;
+			break;
+		}
+	}
+}
+
+AffixLine.prototype.find_intervening_height = function() {
+	for (var child = this.lca.first; child != null; child = child.next) {
+		if ((child.head_chain) || (child.tail_chain)) {
+			this.leftwards = false;
+			if (child.head_chain) this.leftwards = true;
+			break;
+		}
+	}
+
+	this.max_y = Math.max(this.tail.find_intervening_height( this.leftwards),
+	                      this.head.find_intervening_height(!this.leftwards),
+						  this.head.max_y);
+}
+
+AffixLine.prototype.draw = function(ctx, font_size) {
+	var tail_x = this.tail.x + 3;
+	var head_x = this.dest_x - 3;
+	if (this.leftwards) {
+		tail_x -= 6;
+		head_x += 6;
+	}
+
+	// Save context state
+	ctx.save();
+
+	// Set dashed line style
+	ctx.setLineDash([5, 3]);
+
+	var tail_start_y = this.tail.max_y + padding_below_text;
+	ctx.beginPath();
+	ctx.moveTo(tail_x, tail_start_y);
+	ctx.quadraticCurveTo(tail_x, this.bottom_y, (tail_x + head_x) / 2, this.bottom_y);
+	ctx.quadraticCurveTo(head_x, this.bottom_y, head_x, this.dest_y + padding_below_text);
+	ctx.stroke();
+
+	// Restore solid line for arrowhead
+	ctx.setLineDash([]);
+
+	// Arrowhead
+	ctx.beginPath();
+	ctx.lineTo(head_x + 3, this.dest_y + padding_below_text + 10);
+	ctx.lineTo(head_x - 3, this.dest_y + padding_below_text + 10);
+	ctx.lineTo(head_x, this.dest_y + padding_below_text);
+	ctx.closePath();
+	ctx.fillStyle = "#000000";
+	ctx.fill();
+
+	// Draw text label if present
+	if (this.text) {
+		var mid_x = (tail_x + head_x) / 2;
+		var text_y = this.bottom_y + font_size + 2;
+		ctx.font = (font_size - 2) + "pt sans-serif";
+		ctx.textAlign = "center";
+		ctx.fillText(this.text, mid_x, text_y);
+	}
+
+	// Restore context state
+	ctx.restore();
+}
+
+Node.prototype.find_affix_lines = function(alarr, root) {
+	for (var child = this.first; child != null; child = child.next)
+		child.find_affix_lines(alarr, root);
+
+	if (this.affix_tail != null) {
+		var a = new AffixLine();
+		a.tail = this;
+		a.head = root.find_head(this.affix_tail);
+		a.text = this.affix_text;
+		alarr.push(a);
+	}
 }
 
 function go(str, font_size, term_font, nonterm_font, vert_space, hor_space, color, term_lines) {	
@@ -545,13 +687,24 @@ function go(str, font_size, term_font, nonterm_font, vert_space, hor_space, colo
 		root.reset_chains();
 		movement_lines[i].set_up();
 	}
-	
+
+	var affix_lines = new Array();
+	root.find_affix_lines(affix_lines, root);
+	for (var i = 0; i < affix_lines.length; i++) {
+		root.reset_chains();
+		affix_lines[i].set_up();
+	}
+
 	// Set up the canvas.
 	var width = root.left_width + root.right_width + 2 * margin;
 	var height = root.max_y + font_size + 2 * margin;
-	// Problem: movement lines may protrude from bottom.
+	// Problem: movement/affix lines may protrude from bottom.
 	for (var i = 0; i < movement_lines.length; i++)
 		if (movement_lines[i].max_y == root.max_y) {
+			height += vert_space; break;
+		}
+	for (var i = 0; i < affix_lines.length; i++)
+		if (affix_lines[i].max_y == root.max_y) {
 			height += vert_space; break;
 		}
 	
@@ -569,7 +722,9 @@ function go(str, font_size, term_font, nonterm_font, vert_space, hor_space, colo
 	root.draw(ctx, font_size, term_font, nonterm_font, color, term_lines);
 	for (var i = 0; i < movement_lines.length; i++)
 		if (movement_lines[i].should_draw) movement_lines[i].draw(ctx);
-	
+	for (var i = 0; i < affix_lines.length; i++)
+		if (affix_lines[i].should_draw) affix_lines[i].draw(ctx, font_size);
+
 	// Swap out the image
 	return Canvas2Image.saveAsPNG(canvas, true);
 }
@@ -618,7 +773,6 @@ function parse(str) {
 	var i = 0;
 	var esc = false;
 	var token_start = null;
-	var last_target = null; // The last node (this node's label or one of its children) that saw content.
 
 	function flushTextToken(end_index) {
 		if (token_start === null) return;
@@ -626,11 +780,9 @@ function parse(str) {
 		if (raw.length > 0) {
 			if (n.value === null) {
 				setNodeLabel(raw, n);
-				last_target = n;
 			} else {
 				var child = parse(raw);
 				n.children.push(child);
-				last_target = child;
 			}
 		}
 		token_start = null;
@@ -663,6 +815,15 @@ function parse(str) {
 
 		if (ch == "<") {
 			flushTextToken(i);
+			// Try affix tail marker first (<<label>> or <<label:text>>)
+			var affix_data = parseAffixTailMarker(body, i);
+			if (affix_data != null) {
+				n.affix_tail = affix_data.label;
+				n.affix_text = affix_data.text;
+				i = affix_data.end;
+				continue;
+			}
+			// Then try regular movement tail marker (<label>)
 			var tail_data = parseTailMarker(body, i);
 			if (tail_data != null) {
 				n.tail = tail_data.label;
