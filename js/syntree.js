@@ -83,6 +83,12 @@ function isWhitespace(ch) {
 function splitFeatureList(raw) {
 	var list = new Array();
 	if (!raw) return list;
+	function normalizeFeature(feature) {
+		feature = feature.replace(/^\s+|\s+$/g, "");
+		var wrapped = feature.match(/^\[([\s\S]*)\]$/);
+		if (wrapped) feature = wrapped[1].replace(/^\s+|\s+$/g, "");
+		return feature;
+	}
 	var current = "";
 	var esc = false;
 	for (var i = 0; i < raw.length; i++) {
@@ -97,7 +103,7 @@ function splitFeatureList(raw) {
 			continue;
 		}
 		if ((ch == ",") || (ch == ";") || (ch == "\n") || (ch == "\r")) {
-			var trimmed = current.replace(/^\s+|\s+$/g, "");
+			var trimmed = normalizeFeature(current);
 			if (trimmed.length > 0)
 				list.push(trimmed);
 			current = "";
@@ -107,7 +113,7 @@ function splitFeatureList(raw) {
 		}
 		current = current + ch;
 	}
-	var trimmed = current.replace(/^\s+|\s+$/g, "");
+	var trimmed = normalizeFeature(current);
 	if (trimmed.length > 0)
 		list.push(trimmed);
 	return list;
@@ -269,7 +275,7 @@ Node.prototype.assign_location = function(x, y, font_size, term_lines) {
 	if (this.has_children) {
 		var left_start = x - (this.step)*((this.children.length-1)/2);
 		for (var i = 0; i < this.children.length; i++)
-			this.children[i].assign_location(left_start + i*(this.step), y + vert_space, font_size, term_lines);
+			this.children[i].assign_location(left_start + i*(this.step), y + this.feature_block_height + vert_space, font_size, term_lines);
 	} else {
 		if ((this.parent) && (!term_lines) && (this.parent.children.length == 1) && (!this.draw_triangle))
 			this.y = this.parent.y + this.parent.feature_block_height + padding_above_text + padding_below_text + font_size;
@@ -798,6 +804,7 @@ function parse(str) {
 	function flushTextToken(end_index) {
 		if (token_start === null) return;
 		var raw = body.substring(token_start, end_index).replace(/^\s+|\s+$/g, "");
+		raw = raw.replace(/\s+/g, " ");
 		if (raw.length > 0) {
 			if (n.value === null) {
 				setNodeLabel(raw, n);
@@ -817,7 +824,19 @@ function parse(str) {
 		if (ch == "\\") {
 			esc = true; i++; continue;
 		}
-		if (isWhitespace(ch)) { flushTextToken(i); i++; continue; }
+		if (isWhitespace(ch)) {
+			if (n.value === null) {
+				flushTextToken(i);
+				i++;
+				continue;
+			}
+			if (token_start !== null) {
+				i++;
+				continue;
+			}
+			i++;
+			continue;
+		}
 
 		if (ch == "{") {
 			flushTextToken(i);
