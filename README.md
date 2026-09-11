@@ -19,6 +19,7 @@ This fork makes a couple of small changes:
 | Movement with text | `<label:text>` | Movement arrow with text label below |
 | Affix line (dashed) | `<<label>>` | Dashed arrow pointing to `_label` |
 | Affix line with text | `<<label:text>>` | Dashed arrow with text label below |
+| Parallel affix lines | `<<label:first>><<label:second>>` | Separate dashed arrows between the same two nodes |
 | Head/destination | `_label` | Marks destination node for movement/affix arrows |
 | Features | `{[•N•], [+WH]}` | Feature list displayed below node |
 | Strikethrough | `-word-` | Draws strikethrough on the text |
@@ -46,6 +47,7 @@ These strings can be pasted directly into the textarea:
 #### Affix Lines (Dashed) — for Affix Hopping
 9. `[TP [T_a past] [VP [V walked <<a>>]]]` — affix hopping from V to T
 10. `[TP [T_a past] [VP [V walked <<a:Affix Hopping>>]]]` — affix hopping with label
+10a. `[CP [C_a C⁰+T⁰] [TP [DP -The Ottomans- <<a:[NOM,uφ]>><<a:[EPP]>>] [T' [T ∅] [VP ...]]]]]` — two labeled dashed relationships between the same nodes
 
 #### Do-Support
 11. `[CP [C [T_a Tns] [C ∅ {[+Q]}]] [TP [DP we] [T' [T <<a:do-support>> -Tns-] [NegP [Neg not] [VP [V go]]]]]]` — do-support with dashed arrow

@@ -31,6 +31,7 @@ function Node() {
 	this.strikethrough = false;
 	this.affix_tail = null; // Tail of affix line (label).
 	this.affix_text = null; // Text to display on affix line.
+	this.affix_tails = new Array(); // All dashed-line relationships from this node.
 }
 
 var feature_font_delta = 2;
@@ -542,6 +543,10 @@ function AffixLine() {
 	this.max_y = null;
 	this.should_draw = null;
 	this.leftwards = null;
+	this.parallel_index = 0;
+	this.parallel_count = 1;
+	this.parallel_offset = 0;
+	this.lane_offset = 0;
 }
 
 AffixLine.prototype.set_up = function() {
@@ -608,8 +613,8 @@ AffixLine.prototype.find_intervening_height = function() {
 }
 
 AffixLine.prototype.draw = function(ctx, font_size) {
-	var tail_x = this.tail.x + 3;
-	var head_x = this.dest_x - 3;
+	var tail_x = this.tail.x + 3 + this.parallel_offset;
+	var head_x = this.dest_x - 3 + this.parallel_offset;
 	if (this.leftwards) {
 		tail_x -= 6;
 		head_x += 6;
@@ -657,12 +662,51 @@ Node.prototype.find_affix_lines = function(alarr, root) {
 	for (var child = this.first; child != null; child = child.next)
 		child.find_affix_lines(alarr, root);
 
-	if (this.affix_tail != null) {
+	var tails = this.affix_tails;
+	// Preserve compatibility with nodes created outside the parser.
+	if ((tails.length == 0) && (this.affix_tail != null))
+		tails = [{ label: this.affix_tail, text: this.affix_text }];
+
+	for (var i = 0; i < tails.length; i++) {
 		var a = new AffixLine();
 		a.tail = this;
-		a.head = root.find_head(this.affix_tail);
-		a.text = this.affix_text;
+		a.head = root.find_head(tails[i].label);
+		a.text = tails[i].text;
 		alarr.push(a);
+	}
+}
+
+function separateParallelAffixLines(lines, font_size) {
+	var lane_gap = font_size + 8;
+	var path_gap = 8;
+	var groups = new Array();
+
+	for (var i = 0; i < lines.length; i++) {
+		if (!lines[i].should_draw) continue;
+		var group = null;
+		for (var j = 0; j < groups.length; j++) {
+			if ((groups[j][0].head == lines[i].head) && (groups[j][0].tail == lines[i].tail)) {
+				group = groups[j];
+				break;
+			}
+		}
+		if (group == null) {
+			group = new Array();
+			groups.push(group);
+		}
+		group.push(lines[i]);
+	}
+
+	for (var i = 0; i < groups.length; i++) {
+		var group = groups[i];
+		for (var j = 0; j < group.length; j++) {
+			var line = group[j];
+			line.parallel_index = j;
+			line.parallel_count = group.length;
+			line.parallel_offset = (j - (group.length - 1) / 2) * path_gap;
+			line.lane_offset = j * lane_gap;
+			line.bottom_y += line.lane_offset;
+		}
 	}
 }
 
@@ -721,19 +765,19 @@ function go(str, font_size, term_font, nonterm_font, vert_space, hor_space, colo
 		root.reset_chains();
 		affix_lines[i].set_up();
 	}
+	separateParallelAffixLines(affix_lines, font_size);
 
 	// Set up the canvas.
 	var width = root.left_width + root.right_width + 2 * margin;
 	var height = root.max_y + font_size + 2 * margin;
-	// Problem: movement/affix lines may protrude from bottom.
-	for (var i = 0; i < movement_lines.length; i++)
-		if (movement_lines[i].max_y == root.max_y) {
-			height += vert_space; break;
-		}
-	for (var i = 0; i < affix_lines.length; i++)
-		if (affix_lines[i].max_y == root.max_y) {
-			height += vert_space; break;
-		}
+	// Include the deepest line route and any text drawn below it.
+	var all_lines = movement_lines.concat(affix_lines);
+	for (var i = 0; i < all_lines.length; i++) {
+		if (!all_lines[i].should_draw) continue;
+		var line_bottom = all_lines[i].bottom_y;
+		if (all_lines[i].text) line_bottom += font_size + 2;
+		height = Math.max(height, line_bottom + font_size + 2 * margin);
+	}
 	
 	canvas.id = "canvas";
 	canvas.width = width;
@@ -858,6 +902,7 @@ function parse(str) {
 			// Try affix tail marker first (<<label>> or <<label:text>>)
 			var affix_data = parseAffixTailMarker(body, i);
 			if (affix_data != null) {
+				n.affix_tails.push({ label: affix_data.label, text: affix_data.text });
 				n.affix_tail = affix_data.label;
 				n.affix_text = affix_data.text;
 				i = affix_data.end;
